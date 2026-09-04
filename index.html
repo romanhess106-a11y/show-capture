@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crown &amp; Stone — Show Capture</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{--bg:#141A1D;--panel:#1A2226;--panel-2:#212B30;--line:#2E3B41;--text:#E9EBE6;
+        --muted:#8E9EA5;--brass:#C9A24B;--brass-dim:#8A6F34;--live:#E2574C;--go:#5FB08C;--radius:10px}
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Archivo',system-ui,-apple-system,sans-serif;
+       font-size:15px;line-height:1.45;-webkit-font-smoothing:antialiased}
+  button,select{font-family:inherit;font-size:inherit;cursor:pointer}
+  button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+
+  header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 22px;border-bottom:1px solid var(--line)}
+  header h1{font-size:17px;font-weight:600;margin:0;letter-spacing:-.01em}
+  header .sub{color:var(--muted);font-size:13px}
+  .status{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--line);flex:0 0 auto}
+  .dot.on{background:var(--live);animation:pulse 2s ease-in-out infinite}
+  .dot.armed{background:var(--go);animation:pulse 2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  @media (prefers-reduced-motion:reduce){.dot.on,.dot.armed{animation:none}}
+
+  main{display:grid;grid-template-columns:minmax(360px,430px) 1fr;gap:20px;padding:20px;align-items:start}
+  @media (max-width:980px){main{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:18px}
+  .panel:last-child{margin-bottom:0}
+  .panel h2{font-size:13px;font-weight:600;color:var(--muted);margin:0 0 12px}
+  .panel.live{border-color:var(--brass-dim)}
+
+  .stage{position:relative;background:#0C1113;border:1px solid var(--line);border-radius:8px;
+         overflow:hidden;aspect-ratio:16/9;display:flex;align-items:center;justify-content:center}
+  .stage video{width:100%;height:100%;object-fit:contain;display:block}
+  .stage .empty{color:var(--muted);font-size:13px;text-align:center;padding:0 24px}
+  #overlay{position:absolute;inset:0;display:none}
+  #overlay.picking{display:block;cursor:crosshair;background:rgba(12,17,19,.45)}
+  #overlay.showing{display:block;pointer-events:none}
+  #zoneBox{position:absolute;border:2px solid var(--brass);background:rgba(201,162,75,.14);display:none}
+  .pickhint{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);background:rgba(12,17,19,.9);
+    font-size:12px;padding:6px 12px;border-radius:20px;pointer-events:none}
+
+  .btn{border:1px solid var(--line);background:var(--panel-2);color:var(--text);border-radius:8px;padding:9px 14px;font-weight:500}
+  .btn:hover:not(:disabled){border-color:var(--brass-dim)}
+  .btn:disabled{opacity:.4;cursor:not-allowed}
+  .btn.primary{background:var(--brass);border-color:var(--brass);color:#161011;font-weight:600}
+  .btn.primary:hover:not(:disabled){background:#D8B25C}
+  .btn.ghost{background:transparent}
+  .btn.danger:hover:not(:disabled){border-color:var(--live);color:var(--live)}
+  .btn.grow{flex:1}
+  .btn.sm{padding:6px 10px;font-size:13px}
+
+  .row{display:flex;gap:10px;align-items:center;margin-top:12px}
+  .row label{font-size:13px;color:var(--muted);flex:0 0 100px}
+  .row input[type=range]{flex:1;accent-color:var(--brass)}
+  .val{font-variant-numeric:tabular-nums;font-weight:600;min-width:50px;text-align:right;font-size:13px}
+  input[type=text],input[type=number],select{background:var(--panel-2);border:1px solid var(--line);color:var(--text);
+    border-radius:7px;padding:8px 10px;font-family:inherit;font-size:14px;width:100%}
+  select{cursor:pointer}
+
+  .toggle{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--panel-2);
+    border:1px solid var(--line);border-radius:8px;margin-top:12px;cursor:pointer}
+  .toggle input{accent-color:var(--brass);width:17px;height:17px;cursor:pointer;flex:0 0 auto}
+  .toggle .td{font-size:12px;color:var(--muted);line-height:1.35}
+
+  .meter{margin-top:12px}
+  .meter .track{position:relative;height:8px;background:var(--panel-2);border-radius:5px;overflow:hidden}
+  .meter .fill{position:absolute;left:0;top:0;bottom:0;width:0%;background:var(--go);border-radius:5px}
+  .meter .fill.over{background:var(--brass)}
+  .meter .mark{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--live)}
+  .meter .cap{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:6px}
+  .meter .cap b{color:var(--text);font-variant-numeric:tabular-nums;font-weight:600}
+
+  .meta{display:flex;gap:16px;margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:12px;color:var(--muted)}
+  .meta b{display:block;color:var(--text);font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
+
+  .gal-head{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+  .gal-head h2{margin:0;flex:1}
+  .gal-sub{font-size:12px;color:var(--muted);margin:0 0 14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+  .shot{background:var(--panel-2);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .shot img.main{width:100%;display:block;aspect-ratio:16/9;object-fit:cover;background:#0C1113}
+  .shot img.strip{width:100%;display:block;border-top:1px solid var(--line);background:#0C1113;max-height:48px;object-fit:contain}
+  .shot .lot{display:flex;align-items:center;gap:8px;padding:7px 10px 0}
+  .shot .lotno{background:var(--brass);color:#161011;font-weight:700;font-size:12px;
+    padding:1px 8px;border-radius:5px;font-variant-numeric:tabular-nums}
+  .shot .time{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;margin-left:auto}
+  .shot .body{padding:7px 10px 10px}
+  .shot .fields{display:flex;gap:6px;margin-bottom:7px}
+  .shot .fields input.nm{flex:1}
+  .shot .fields input.pr{width:72px;text-align:right}
+  .shot .ctl{display:flex;align-items:center;gap:6px}
+  .shot .ctl button{background:transparent;border:1px solid var(--line);color:var(--muted);
+    border-radius:6px;padding:2px 7px;font-size:12px;line-height:1.5}
+  .shot .ctl button:hover{color:var(--text);border-color:var(--brass-dim)}
+  .shot .frameno{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .shot .spacer{flex:1}
+  .empty-gal{border:1px dashed var(--line);border-radius:8px;padding:40px 24px;text-align:center;color:var(--muted);font-size:14px}
+
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--panel-2);
+    border:1px solid var(--brass-dim);color:var(--text);padding:10px 18px;border-radius:8px;
+    font-size:14px;font-weight:500;opacity:0;pointer-events:none;transition:opacity .18s ease;z-index:50}
+  .toast.show{opacity:1}
+  .note{font-size:12px;color:var(--muted);margin:10px 0 0;line-height:1.5}
+  .banner{background:var(--panel-2);border:1px solid var(--brass-dim);border-radius:8px;
+    padding:10px 12px;font-size:13px;color:var(--muted);margin-bottom:12px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Show Capture</h1>
+  <span class="sub">Crown &amp; Stone</span>
+  <div class="status"><span class="dot" id="dot"></span><span id="statusText">No show running</span></div>
+</header>
+
+<main>
+<div>
+  <section class="panel" id="showPanel">
+    <h2>Show</h2>
+    <div id="showIdle">
+      <input type="text" id="showName" placeholder="Show name">
+      <div class="row">
+        <label for="startLot">First lot #</label>
+        <input type="number" id="startLot" value="1" min="0" step="1" style="width:90px">
+      </div>
+      <div class="row"><button class="btn primary grow" id="startShow">Start show</button></div>
+      <p class="note">Starting a show resets lot numbering. Captures are filed under this show and stay there.</p>
+    </div>
+    <div id="showLive" style="display:none">
+      <div class="banner"><b id="liveName">—</b><br><span id="liveStats">—</span></div>
+      <div class="row" style="margin-top:0"><button class="btn grow" id="endShow">End show</button></div>
+      <p class="note">Ending a show keeps only the frame you picked for each lot, which frees up a lot of space. Do it once you've chosen your frames.</p>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Source</h2>
+    <div class="stage" id="stage">
+      <div class="empty" id="stageEmpty">Pick the window showing your Whatnot stream when you start.</div>
+      <video id="video" autoplay muted playsinline style="display:none"></video>
+      <div id="overlay"><div id="zoneBox"></div><div class="pickhint" id="pickHint">Drag a box around the item title</div></div>
+    </div>
+    <div class="row">
+      <button class="btn primary grow" id="startBtn">Start capturing</button>
+      <button class="btn ghost" id="stopBtn" disabled>Stop</button>
+    </div>
+    <div class="row">
+      <button class="btn grow" id="manualBtn" disabled>Capture lot &nbsp;·&nbsp; Space</button>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Automatic trigger</h2>
+    <div class="row" style="margin-top:0">
+      <button class="btn grow" id="zoneBtn" disabled>Set watch zone</button>
+      <button class="btn ghost sm" id="zoneClear" disabled>Clear</button>
+    </div>
+    <div class="meter">
+      <div class="track"><div class="fill" id="diffFill"></div><div class="mark" id="diffMark"></div></div>
+      <div class="cap"><span>Change in zone</span><span><b id="diffVal">—</b></span></div>
+    </div>
+    <label class="toggle" for="autoOn">
+      <input type="checkbox" id="autoOn" disabled>
+      <span>Capture when the zone changes<br><span class="td">Fires on the new lot appearing, reaches back for the one that sold</span></span>
+    </label>
+    <div class="row"><label for="thresh">Sensitivity</label>
+      <input type="range" id="thresh" min="1" max="30" step="1" value="8"><span class="val" id="threshVal">8%</span></div>
+    <div class="row"><label for="lookback">Look back</label>
+      <input type="range" id="lookback" min="0" max="30" step="1" value="14"><span class="val" id="lookbackVal">14s</span></div>
+    <div class="row"><label for="gap">Min gap</label>
+      <input type="range" id="gap" min="3" max="60" step="1" value="10"><span class="val" id="gapVal">10s</span></div>
+    <div class="meta">
+      <div><b id="bufSecs">0s</b>buffer</div>
+      <div><b id="sinceLast">—</b>since last</div>
+      <div><b id="sizeEst">0 MB</b>this show</div>
+    </div>
+  </section>
+</div>
+
+  <section class="panel">
+    <div class="gal-head">
+      <h2>Lots</h2>
+      <select id="showPick" style="width:auto;min-width:180px"></select>
+      <button class="btn ghost sm" id="sortBtn">Newest first</button>
+      <button class="btn ghost sm danger" id="delShow">Delete show</button>
+      <button class="btn sm" id="zipBtn">Download show</button>
+    </div>
+    <p class="gal-sub" id="galSub"></p>
+    <div id="gallery"></div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  "use strict";
+  const BUFFER_SECONDS=45, SAMPLE_MS=400, JPEG_QUALITY=.78, OUT_WIDTH=1100;
+  const SETTLE_MS=1400, SIG_W=80, DB_NAME='cs-capture-v3', S_SHOWS='shows', S_SHOTS='shots';
+
+  let stream=null,sampler=null,buffer=[],zone=null;
+  let sig=null,candSig=null,candSince=0,lastTrigger=0;
+  let shows=[],shots=[],activeId=null,viewId=null,newestFirst=true,db=null,seq=0;
+
+  const $=id=>document.getElementById(id);
+  const video=$('video');
+  const cvs=document.createElement('canvas'),ctx=cvs.getContext('2d');
+  const zcvs=document.createElement('canvas'),zctx=zcvs.getContext('2d',{willReadFrequently:true});
+  const ccvs=document.createElement('canvas'),cctx=ccvs.getContext('2d');
+
+  function openDB(){return new Promise(r=>{let q;try{q=indexedDB.open(DB_NAME,1)}catch(e){return r(null)}
+    q.onupgradeneeded=()=>{const d=q.result;
+      if(!d.objectStoreNames.contains(S_SHOWS))d.createObjectStore(S_SHOWS,{keyPath:'id'});
+      if(!d.objectStoreNames.contains(S_SHOTS)){
+        const s=d.createObjectStore(S_SHOTS,{keyPath:'id'});s.createIndex('showId','showId',{unique:false})}};
+    q.onsuccess=()=>r(q.result);q.onerror=()=>r(null)})}
+  function put(store,v){if(db)try{db.transaction(store,'readwrite').objectStore(store).put(v)}catch(e){}}
+  function del(store,k){if(db)try{db.transaction(store,'readwrite').objectStore(store).delete(k)}catch(e){}}
+  function allShows(){return new Promise(r=>{if(!db)return r([]);try{
+    const q=db.transaction(S_SHOWS,'readonly').objectStore(S_SHOWS).getAll();
+    q.onsuccess=()=>r(q.result||[]);q.onerror=()=>r([])}catch(e){r([])}})}
+  function shotsFor(id){return new Promise(r=>{if(!db||!id)return r([]);try{
+    const q=db.transaction(S_SHOTS,'readonly').objectStore(S_SHOTS).index('showId').getAll(id);
+    q.onsuccess=()=>r(q.result||[]);q.onerror=()=>r([])}catch(e){r([])}})}
+
+  function activeShow(){return shows.find(s=>s.id===activeId)||null}
+  function viewShow(){return shows.find(s=>s.id===viewId)||null}
+
+  $('startShow').addEventListener('click',()=>{
+    const d=new Date();
+    const nm=($('showName').value||'').trim()||('Show '+d.toLocaleDateString([],{month:'short',day:'numeric'}));
+    const sl=parseInt($('startLot').value,10);
+    const show={id:'show-'+Date.now(),name:nm,startedAt:Date.now(),endedAt:null,
+                startLot:isNaN(sl)?1:sl,count:0};
+    shows.unshift(show);put(S_SHOWS,show);
+    activeId=show.id;viewId=show.id;shots=[];
+    $('showName').value='';
+    refreshShowUI();renderPicker();render();setStatus();
+    toast('Show started — '+nm);
+  });
+
+  $('endShow').addEventListener('click',async()=>{
+    const s=activeShow();if(!s)return;
+    if(!confirm('End "'+s.name+'"? Only the frame you picked for each lot is kept.'))return;
+    s.endedAt=Date.now();put(S_SHOWS,s);
+    const list=(viewId===s.id)?shots:await shotsFor(s.id);
+    list.forEach(x=>{if(x.frames.length>1){x.frames=[x.frames[x.chosen]];x.chosen=0;put(S_SHOTS,x)}});
+    activeId=null;
+    refreshShowUI();renderPicker();render();setStatus();
+    toast('Show ended.');
+  });
+
+  function refreshShowUI(){
+    const s=activeShow();
+    $('showIdle').style.display=s?'none':'block';
+    $('showLive').style.display=s?'block':'none';
+    $('showPanel').classList.toggle('live',!!s);
+    if(s){
+      $('liveName').textContent=s.name;
+      const mins=Math.floor((Date.now()-s.startedAt)/60000);
+      const n=(viewId===s.id?shots.length:s.count);
+      $('liveStats').textContent=n+' lot'+(n===1?'':'s')+' · running '+
+        (mins<60?mins+' min':Math.floor(mins/60)+'h '+(mins%60)+'m')+
+        ' · next is lot '+(s.startLot+n);
+    }
+    $('manualBtn').disabled=!(stream&&s);
+  }
+  setInterval(()=>{if(activeShow())refreshShowUI()},15000);
+
+  function renderPicker(){
+    const sel=$('showPick');sel.innerHTML='';
+    if(!shows.length){sel.innerHTML='<option>No shows yet</option>';return}
+    shows.forEach(s=>{
+      const o=document.createElement('option');o.value=s.id;
+      o.textContent=s.name+(s.id===activeId?'  · live':'')+'  ('+(s.id===viewId?shots.length:s.count)+')';
+      if(s.id===viewId)o.selected=true;
+      sel.appendChild(o);
+    });
+  }
+  $('showPick').addEventListener('change',async e=>{
+    viewId=e.target.value;shots=(await shotsFor(viewId)).sort((a,b)=>a.ts-b.ts);
+    render();renderPicker();
+  });
+  $('delShow').addEventListener('click',async()=>{
+    const s=viewShow();if(!s)return;
+    if(s.id===activeId){toast('End the show before deleting it.');return}
+    if(!confirm('Delete "'+s.name+'" and all '+s.count+' lots? This cannot be undone.'))return;
+    (await shotsFor(s.id)).forEach(x=>del(S_SHOTS,x.id));
+    del(S_SHOWS,s.id);
+    shows=shows.filter(x=>x.id!==s.id);
+    viewId=shows.length?shows[0].id:null;
+    shots=viewId?(await shotsFor(viewId)).sort((a,b)=>a.ts-b.ts):[];
+    renderPicker();render();toast('Show deleted.');
+  });
+  $('sortBtn').addEventListener('click',()=>{
+    newestFirst=!newestFirst;$('sortBtn').textContent=newestFirst?'Newest first':'Lot order';render();
+  });
+
+  async function start(){
+    try{stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:15},audio:false})}
+    catch(err){toast(err&&err.name==='NotAllowedError'?'Screen sharing was declined.':
+      'Screen capture is blocked here — open this page in its own tab.');return}
+    video.srcObject=stream;video.style.display='block';$('stageEmpty').style.display='none';
+    stream.getVideoTracks()[0].addEventListener('ended',stop);
+    await video.play().catch(()=>{});
+    sampler=setInterval(sample,SAMPLE_MS);
+    $('startBtn').disabled=true;$('stopBtn').disabled=false;$('zoneBtn').disabled=false;
+    if(zone){$('zoneClear').disabled=false;$('autoOn').disabled=false;drawZone()}
+    refreshShowUI();setStatus();
+  }
+  function stop(){
+    clearInterval(sampler);sampler=null;
+    if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+    video.srcObject=null;video.style.display='none';$('stageEmpty').style.display='block';
+    $('overlay').className='';buffer=[];sig=null;candSig=null;
+    $('startBtn').disabled=false;$('stopBtn').disabled=true;$('zoneBtn').disabled=true;
+    $('autoOn').checked=false;$('autoOn').disabled=true;
+    $('bufSecs').textContent='0s';$('diffVal').textContent='—';$('diffFill').style.width='0%';
+    refreshShowUI();setStatus();
+  }
+  function setStatus(){
+    const d=$('dot'),t=$('statusText');d.className='dot';
+    if(!activeShow()){t.textContent=stream?'Capturing — no show running':'No show running';return}
+    if(!stream){t.textContent='Show running — screen not shared';return}
+    if($('autoOn').checked&&zone){d.classList.add('armed');t.textContent='Watching for lot changes'}
+    else{d.classList.add('on');t.textContent='Ready — press Space on each sale'}
+  }
+
+  function videoRect(){
+    const s=$('stage').getBoundingClientRect(),vw=video.videoWidth,vh=video.videoHeight;
+    if(!vw||!vh)return{x:0,y:0,w:s.width,h:s.height};
+    const k=Math.min(s.width/vw,s.height/vh),w=vw*k,h=vh*k;
+    return{x:(s.width-w)/2,y:(s.height-h)/2,w,h};
+  }
+  function sample(){
+    if(!video.videoWidth)return;
+    const w=Math.min(OUT_WIDTH,video.videoWidth),h=Math.round(w*video.videoHeight/video.videoWidth);
+    cvs.width=w;cvs.height=h;ctx.drawImage(video,0,0,w,h);
+    const e={t:Date.now(),full:cvs.toDataURL('image/jpeg',JPEG_QUALITY),zone:null};
+    if(zone){
+      const sx=zone.x*video.videoWidth,sy=zone.y*video.videoHeight;
+      const sw=Math.max(2,zone.w*video.videoWidth),sh=Math.max(2,zone.h*video.videoHeight);
+      const cw=Math.min(420,Math.max(120,Math.round(sw)));
+      ccvs.width=cw;ccvs.height=Math.max(1,Math.round(cw*sh/sw));
+      cctx.drawImage(video,sx,sy,sw,sh,0,0,ccvs.width,ccvs.height);
+      e.zone=ccvs.toDataURL('image/jpeg',.8);
+      checkZone(sx,sy,sw,sh);
+    }
+    buffer.push(e);
+    const cut=Date.now()-BUFFER_SECONDS*1000;
+    while(buffer.length&&buffer[0].t<cut)buffer.shift();
+    $('bufSecs').textContent=(buffer.length?Math.round((buffer[buffer.length-1].t-buffer[0].t)/1000):0)+'s';
+    const sc=lastTrigger?Math.round((Date.now()-lastTrigger)/1000):null;
+    $('sinceLast').textContent=sc===null?'—':(sc<90?sc+'s':Math.round(sc/60)+'m');
+  }
+  function signature(sx,sy,sw,sh){
+    const w=SIG_W,h=Math.max(4,Math.round(w*sh/sw));
+    zcvs.width=w;zcvs.height=h;zctx.drawImage(video,sx,sy,sw,sh,0,0,w,h);
+    const d=zctx.getImageData(0,0,w,h).data,o=new Uint8Array(w*h);
+    for(let i=0,p=0;i<d.length;i+=4,p++)o[p]=(d[i]*.299+d[i+1]*.587+d[i+2]*.114)|0;
+    return o;
+  }
+  function diffPct(a,b){if(!a||!b||a.length!==b.length)return 100;
+    let s=0;for(let i=0;i<a.length;i++)s+=Math.abs(a[i]-b[i]);return (s/a.length)/255*100}
+  function checkZone(sx,sy,sw,sh){
+    const now=signature(sx,sy,sw,sh);
+    if(!sig){sig=now;return}
+    const d=diffPct(now,sig),th=parseInt($('thresh').value,10);
+    $('diffVal').textContent=d.toFixed(1)+'%';
+    const f=$('diffFill');f.style.width=Math.min(100,d*3)+'%';f.classList.toggle('over',d>=th);
+    if(d<th){candSig=null;candSince=0;return}
+    if(!candSig||diffPct(now,candSig)>=th){candSig=now;candSince=Date.now();return}
+    if(Date.now()-candSince<SETTLE_MS)return;
+    const changedAt=candSince;sig=now;candSig=null;candSince=0;
+    if(Date.now()-lastTrigger<parseInt($('gap').value,10)*1000)return;
+    if(!$('autoOn').checked||!activeShow())return;
+    lastTrigger=Date.now();grab(changedAt);
+  }
+
+  function frameAt(t){if(!buffer.length)return null;
+    let b=buffer[0],g=Math.abs(buffer[0].t-t);
+    for(const f of buffer){const x=Math.abs(f.t-t);if(x<g){b=f;g=x}}return b}
+  function grab(anchor){
+    const show=activeShow();
+    if(!show){toast('Start a show first.');return}
+    if(!buffer.length){toast('Nothing buffered yet.');return}
+    const at=(anchor||Date.now())-parseInt($('lookback').value,10)*1000;
+    const picks=[at-2500,at,at+2500].map(frameAt).filter(Boolean);
+    if(!picks.length)return;
+    const lab=frameAt((anchor||Date.now())-1500);
+    const rec={id:'shot-'+Date.now()+'-'+(++seq),showId:show.id,ts:anchor||Date.now(),
+      name:'',price:'',frames:picks.map(p=>p.full),strip:(lab&&lab.zone)||null,
+      chosen:Math.min(1,picks.length-1)};
+    shots.push(rec);shots.sort((a,b)=>a.ts-b.ts);
+    put(S_SHOTS,rec);
+    show.count=shots.length;put(S_SHOWS,show);
+    render();refreshShowUI();renderPicker();
+    toast('Lot '+(show.startLot+shots.length-1)+' captured');
+  }
+
+  let picking=false,dragStart=null;
+  const overlay=$('overlay'),box=$('zoneBox');
+  $('zoneBtn').addEventListener('click',()=>{
+    picking=!picking;overlay.className=picking?'picking':(zone?'showing':'');
+    $('pickHint').style.display=picking?'block':'none';
+    $('zoneBtn').textContent=picking?'Cancel':(zone?'Change watch zone':'Set watch zone');
+    if(zone)drawZone();
+  });
+  $('zoneClear').addEventListener('click',()=>{
+    zone=null;sig=null;candSig=null;box.style.display='none';overlay.className='';
+    $('zoneClear').disabled=true;$('autoOn').checked=false;$('autoOn').disabled=true;
+    $('zoneBtn').textContent='Set watch zone';$('diffVal').textContent='—';$('diffFill').style.width='0%';setStatus();
+  });
+  overlay.addEventListener('mousedown',e=>{if(!picking)return;
+    const r=overlay.getBoundingClientRect();dragStart={x:e.clientX-r.left,y:e.clientY-r.top};
+    box.style.display='block';box.style.left=dragStart.x+'px';box.style.top=dragStart.y+'px';
+    box.style.width='0px';box.style.height='0px'});
+  overlay.addEventListener('mousemove',e=>{if(!picking||!dragStart)return;
+    const r=overlay.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+    box.style.left=Math.min(x,dragStart.x)+'px';box.style.top=Math.min(y,dragStart.y)+'px';
+    box.style.width=Math.abs(x-dragStart.x)+'px';box.style.height=Math.abs(y-dragStart.y)+'px'});
+  overlay.addEventListener('mouseup',e=>{if(!picking||!dragStart)return;
+    const r=overlay.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+    const px=Math.min(x,dragStart.x),py=Math.min(y,dragStart.y);
+    const pw=Math.abs(x-dragStart.x),ph=Math.abs(y-dragStart.y);dragStart=null;
+    if(pw<12||ph<8){toast('Zone too small.');box.style.display='none';return}
+    const v=videoRect();
+    zone={x:Math.max(0,(px-v.x)/v.w),y:Math.max(0,(py-v.y)/v.h),w:Math.min(1,pw/v.w),h:Math.min(1,ph/v.h)};
+    sig=null;candSig=null;picking=false;overlay.className='showing';
+    $('pickHint').style.display='none';$('zoneBtn').textContent='Change watch zone';
+    $('zoneClear').disabled=false;$('autoOn').disabled=false;drawZone();toast('Watch zone set.')});
+  function drawZone(){if(!zone)return;const v=videoRect();
+    box.style.display='block';box.style.left=(v.x+zone.x*v.w)+'px';box.style.top=(v.y+zone.y*v.h)+'px';
+    box.style.width=(zone.w*v.w)+'px';box.style.height=(zone.h*v.h)+'px'}
+  window.addEventListener('resize',()=>{if(zone&&!picking)drawZone()});
+
+  function lotNo(i){const s=viewShow();return (s?s.startLot:1)+i}
+  function render(){
+    const gal=$('gallery'),s=viewShow();
+    let bytes=0;for(const x of shots){for(const f of x.frames)bytes+=f.length*.75;if(x.strip)bytes+=x.strip.length*.75}
+    $('sizeEst').textContent=(bytes/1048576).toFixed(1)+' MB';
+    $('galSub').textContent=s?(s.name+' · '+shots.length+' lot'+(shots.length===1?'':'s')+
+      (s.endedAt?' · ended '+new Date(s.endedAt).toLocaleString([],{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}):' · live')):'';
+    if(!shots.length){
+      gal.innerHTML='<div class="empty-gal">'+(s?'No lots captured yet. Press Space each time an item sells.':'Start a show to begin capturing.')+'</div>';
+      return}
+    gal.innerHTML='<div class="grid"></div>';const grid=gal.firstChild;
+    const idx=shots.map((x,i)=>i);
+    (newestFirst?idx.slice().reverse():idx).forEach(i=>{
+      const x=shots[i],el=document.createElement('div');el.className='shot';
+      el.innerHTML='<img class="main" alt="">'+(x.strip?'<img class="strip" alt="">':'')+
+        '<div class="lot"><span class="lotno">Lot '+lotNo(i)+'</span><span class="time">'+
+        new Date(x.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})+'</span></div>'+
+        '<div class="body"><div class="fields"><input class="nm" type="text" placeholder="Item">'+
+        '<input class="pr" type="text" placeholder="$"></div>'+
+        '<div class="ctl"><button data-a="prev">&#9664;</button><span class="frameno"></span>'+
+        '<button data-a="next">&#9654;</button><span class="spacer"></span>'+
+        '<button data-a="save">Save</button><button data-a="del">&#215;</button></div></div>';
+      const imgs=el.querySelectorAll('img'),main=imgs[0];
+      if(x.strip)imgs[1].src=x.strip;
+      const nm=el.querySelector('.nm'),pr=el.querySelector('.pr'),no=el.querySelector('.frameno');
+      const paint=()=>{main.src=x.frames[x.chosen];no.textContent=(x.chosen+1)+'/'+x.frames.length};
+      paint();nm.value=x.name||'';pr.value=x.price||'';
+      nm.addEventListener('input',()=>{x.name=nm.value;put(S_SHOTS,x)});
+      pr.addEventListener('input',()=>{x.price=pr.value;put(S_SHOTS,x)});
+      el.addEventListener('click',ev=>{
+        const a=ev.target.getAttribute&&ev.target.getAttribute('data-a');if(!a)return;
+        if(a==='prev'){x.chosen=(x.chosen-1+x.frames.length)%x.frames.length;paint();put(S_SHOTS,x)}
+        if(a==='next'){x.chosen=(x.chosen+1)%x.frames.length;paint();put(S_SHOTS,x)}
+        if(a==='save'){const l=document.createElement('a');l.href=x.frames[x.chosen];
+          l.download=fname(x,lotNo(i));l.click()}
+        if(a==='del'){
+          if(!confirm('Delete lot '+lotNo(i)+'? Later lots renumber.'))return;
+          del(S_SHOTS,x.id);shots.splice(i,1);
+          const sh=viewShow();if(sh){sh.count=shots.length;put(S_SHOWS,sh)}
+          render();refreshShowUI();renderPicker()}
+      });
+      grid.appendChild(el);
+    });
+  }
+  function slug(t){return (t||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'')}
+  function fname(x,n){const b=slug(x.name);return 'lot-'+String(n).padStart(3,'0')+(b?'-'+b:'')+'.jpg'}
+
+  async function downloadZip(){
+    const s=viewShow();
+    if(!s||!shots.length){toast('Nothing to download.');return}
+    if(typeof JSZip==='undefined'){toast('Zip library did not load.');return}
+    toast('Building zip…');
+    const folder=slug(s.name)+'-'+new Date(s.startedAt).toISOString().slice(0,10);
+    const zip=new JSZip(),dir=zip.folder(folder);
+    let csv='Lot,Time,Minutes into show,Item,Price,File\n';
+    let html='<meta charset="utf-8"><title>'+s.name+'</title>'+
+      '<style>body{font-family:system-ui;margin:24px;background:#141A1D;color:#E9EBE6}'+
+      'h1{font-size:20px;font-weight:600}.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-top:20px}'+
+      '.c{background:#1A2226;border:1px solid #2E3B41;border-radius:8px;overflow:hidden}'+
+      '.c img{width:100%;display:block}.b{padding:8px 10px;font-size:14px}'+
+      '.n{background:#C9A24B;color:#161011;font-weight:700;font-size:12px;padding:1px 8px;border-radius:5px}'+
+      '.m{color:#8E9EA5;font-size:12px;margin-top:4px}</style>'+
+      '<h1>'+s.name+'</h1><div class="g">';
+    shots.forEach((x,i)=>{
+      const n=lotNo(i),f=fname(x,n);
+      dir.file(f,x.frames[x.chosen].split(',')[1],{base64:true});
+      const t=new Date(x.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+      const mins=Math.round((x.ts-s.startedAt)/60000);
+      csv+=[n,t,mins,'"'+(x.name||'').replace(/"/g,'""')+'"','"'+(x.price||'')+'"',f].join(',')+'\n';
+      html+='<div class="c"><img src="'+f+'"><div class="b"><span class="n">Lot '+n+'</span> '+
+        (x.name||'')+(x.price?' — '+x.price:'')+'<div class="m">'+t+'</div></div></div>';
+    });
+    html+='</div>';
+    dir.file('lots.csv',csv);
+    dir.file('index.html',html);
+    const blob=await zip.generateAsync({type:'blob'}),url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download=folder+'.zip';a.click();
+    setTimeout(()=>URL.revokeObjectURL(url),5000);
+  }
+
+  let tt=null;
+  function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');
+    clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2400)}
+
+  $('startBtn').addEventListener('click',start);
+  $('stopBtn').addEventListener('click',stop);
+  $('manualBtn').addEventListener('click',()=>grab(null));
+  $('zipBtn').addEventListener('click',downloadZip);
+  $('autoOn').addEventListener('change',setStatus);
+  $('thresh').addEventListener('input',e=>{$('threshVal').textContent=e.target.value+'%';
+    $('diffMark').style.left=Math.min(100,e.target.value*3)+'%'});
+  $('lookback').addEventListener('input',e=>{$('lookbackVal').textContent=e.target.value+'s'});
+  $('gap').addEventListener('input',e=>{$('gapVal').textContent=e.target.value+'s'});
+  document.addEventListener('keydown',e=>{
+    if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;
+    if(e.code==='Space'||e.key==='c'||e.key==='C'){e.preventDefault();
+      if(stream&&activeShow())grab(null)}});
+
+  (async()=>{
+    db=await openDB();
+    shows=(await allShows()).sort((a,b)=>b.startedAt-a.startedAt);
+    const live=shows.find(s=>!s.endedAt);
+    if(live){activeId=live.id;viewId=live.id}
+    else if(shows.length)viewId=shows[0].id;
+    shots=viewId?(await shotsFor(viewId)).sort((a,b)=>a.ts-b.ts):[];
+    $('diffMark').style.left=Math.min(100,$('thresh').value*3)+'%';
+    refreshShowUI();renderPicker();render();setStatus();
+  })();
+})();
+</script>
+</body>
+</html>
